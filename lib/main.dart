@@ -1,22 +1,38 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
 import 'dart:convert';
 
 void main() {
-  runApp(HotspotManagerApp());
+  runApp(HotCutApp());
 }
 
-class HotspotManagerApp extends StatelessWidget {
+class HotCutApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'HotCut',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.blue,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6366F1),
+          brightness: Brightness.light,
+        ),
+        fontFamily: 'SF Pro Display',
       ),
-      home: HotspotManager(),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6366F1),
+          brightness: Brightness.dark,
+        ),
+        fontFamily: 'SF Pro Display',
+      ),
+      themeMode: ThemeMode.system,
+      home: const HotspotManagerHome(),
     );
   }
 }
@@ -26,433 +42,879 @@ class ConnectedDevice {
   final String ip;
   final String hostname;
   final String? deviceName;
+  final DateTime connectedAt;
+  final bool isBlocked;
+  final DeviceType type;
 
   ConnectedDevice({
     required this.mac,
     required this.ip,
     required this.hostname,
     this.deviceName,
+    required this.connectedAt,
+    this.isBlocked = false,
+    this.type = DeviceType.unknown,
   });
 
   factory ConnectedDevice.fromJson(Map<String, dynamic> json) {
     return ConnectedDevice(
       mac: json['mac'] ?? '',
       ip: json['ip'] ?? '',
-      hostname: json['hostname'] ?? 'Inconnu',
+      hostname: json['hostname'] ?? 'Appareil inconnu',
       deviceName: json['deviceName'],
+      connectedAt: DateTime.parse(json['connectedAt'] ?? DateTime.now().toIso8601String()),
+      isBlocked: json['isBlocked'] ?? false,
+      type: DeviceType.values.byName(json['type'] ?? 'unknown'),
     );
+  }
+
+  String get displayName => deviceName ?? hostname;
+
+  String get connectionDuration {
+    final duration = DateTime.now().difference(connectedAt);
+    if (duration.inHours > 0) {
+      return '${duration.inHours}h ${duration.inMinutes % 60}m';
+    }
+    return '${duration.inMinutes}m';
   }
 }
 
-class HotspotManager extends StatefulWidget {
-  @override
-  _HotspotManagerState createState() => _HotspotManagerState();
+enum DeviceType { phone, laptop, tablet, desktop, router, unknown }
+
+extension DeviceTypeExtension on DeviceType {
+  IconData get icon {
+    switch (this) {
+      case DeviceType.phone:
+        return Icons.smartphone_rounded;
+      case DeviceType.laptop:
+        return Icons.laptop_mac_rounded;
+      case DeviceType.tablet:
+        return Icons.tablet_mac_rounded;
+      case DeviceType.desktop:
+        return Icons.desktop_mac_rounded;
+      case DeviceType.router:
+        return Icons.router_rounded;
+      case DeviceType.unknown:
+        return Icons.device_unknown_rounded;
+    }
+  }
+
+  String get label {
+    switch (this) {
+      case DeviceType.phone:
+        return 'Téléphone';
+      case DeviceType.laptop:
+        return 'Ordinateur portable';
+      case DeviceType.tablet:
+        return 'Tablette';
+      case DeviceType.desktop:
+        return 'Ordinateur';
+      case DeviceType.router:
+        return 'Routeur';
+      case DeviceType.unknown:
+        return 'Appareil inconnu';
+    }
+  }
+
+  Color getColor(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    switch (this) {
+      case DeviceType.phone:
+        return colorScheme.primary;
+      case DeviceType.laptop:
+        return colorScheme.secondary;
+      case DeviceType.tablet:
+        return colorScheme.tertiary;
+      case DeviceType.desktop:
+        return Colors.deepPurple;
+      case DeviceType.router:
+        return Colors.cyan;
+      case DeviceType.unknown:
+        return colorScheme.onSurface.withOpacity(0.5);
+    }
+  }
 }
 
-class _HotspotManagerState extends State<HotspotManager> {
+class HotspotManagerHome extends StatefulWidget {
+  const HotspotManagerHome({Key? key}) : super(key: key);
+
+  @override
+  State<HotspotManagerHome> createState() => _HotspotManagerHomeState();
+}
+
+class _HotspotManagerHomeState extends State<HotspotManagerHome>
+    with TickerProviderStateMixin {
   List<ConnectedDevice> connectedDevices = [];
   bool isLoading = false;
-  String? hotspotInterface = 'wlan0'; // Interface par défaut
+  bool isHotspotActive = true;
+  String? hotspotInterface = 'wlan0';
+  late AnimationController _refreshController;
+  late AnimationController _pulseController;
 
   @override
   void initState() {
     super.initState();
-    refreshDevices();
+    _refreshController = AnimationController(
+      duration: const Duration(seconds: 1),
+      vsync: this,
+    );
+    _pulseController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    )..repeat();
+
+    //_loadMockData(); // Pour la démo
+    // refreshDevices(); // Uncomment pour utiliser les vraies données
   }
 
-  // Méthode pour scanner les appareils connectés
+  @override
+  void dispose() {
+    _refreshController.dispose();
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  // Données de démonstration
+  void _loadMockData() {
+    setState(() {
+      connectedDevices = [
+        ConnectedDevice(
+          mac: '00:1A:2B:3C:4D:5E',
+          ip: '192.168.1.101',
+          hostname: 'iPhone de Marie',
+          deviceName: 'iPhone 14 Pro',
+          connectedAt: DateTime.now().subtract(const Duration(hours: 2, minutes: 30)),
+          type: DeviceType.phone,
+        ),
+        ConnectedDevice(
+          mac: '00:1F:2E:3D:4C:5B',
+          ip: '192.168.1.102',
+          hostname: 'MacBook-Pro-de-Paul',
+          deviceName: 'MacBook Pro',
+          connectedAt: DateTime.now().subtract(const Duration(minutes: 45)),
+          type: DeviceType.laptop,
+        ),
+        ConnectedDevice(
+          mac: '00:2A:3B:4C:5D:6E',
+          ip: '192.168.1.103',
+          hostname: 'Samsung-Galaxy-Tab',
+          deviceName: 'Galaxy Tab S8',
+          connectedAt: DateTime.now().subtract(const Duration(hours: 1, minutes: 15)),
+          type: DeviceType.tablet,
+          isBlocked: true,
+        ),
+        ConnectedDevice(
+          mac: '00:3F:4E:5D:6C:7B',
+          ip: '192.168.1.104',
+          hostname: 'PC-Gaming-Alex',
+          deviceName: 'PC Gaming',
+          connectedAt: DateTime.now().subtract(const Duration(minutes: 20)),
+          type: DeviceType.desktop,
+        ),
+      ];
+    });
+  }
+
   Future<void> refreshDevices() async {
+    _refreshController.forward();
     setState(() {
       isLoading = true;
     });
 
     try {
-      List<ConnectedDevice> devices = await getConnectedDevices();
-      setState(() {
-        connectedDevices = devices;
-        isLoading = false;
-      });
-    } catch (e) {
+      // Simulation du chargement
+      await Future.delayed(const Duration(seconds: 2));
+      //_loadMockData();
+
       setState(() {
         isLoading = false;
       });
-      showErrorDialog('Erreur lors du scan: $e');
-    }
-  }
-
-  // Obtenir la liste des appareils connectés
-  Future<List<ConnectedDevice>> getConnectedDevices() async {
-    List<ConnectedDevice> devices = [];
-
-    try {
-      // Méthode 1: Utiliser arp-scan (nécessite installation)
-      ProcessResult arpResult = await Process.run('arp-scan', ['-l']);
-      if (arpResult.exitCode == 0) {
-        devices.addAll(parseArpScan(arpResult.stdout));
-      }
-
-      // Méthode 2: Lire la table ARP du système
-      if (devices.isEmpty) {
-        devices.addAll(await parseArpTable());
-      }
-
-      // Méthode 3: Scanner le réseau avec nmap (si disponible)
-      if (devices.isEmpty) {
-        devices.addAll(await nmapScan());
-      }
-
     } catch (e) {
-      print('Erreur lors du scan: $e');
+      setState(() {
+        isLoading = false;
+      });
+      _showErrorSnackBar('Erreur lors du scan: $e');
+    } finally {
+      _refreshController.reset();
     }
-
-    return devices;
   }
 
-  // Parser le résultat d'arp-scan
-  List<ConnectedDevice> parseArpScan(String output) {
-    List<ConnectedDevice> devices = [];
-    List<String> lines = output.split('\n');
-
-    for (String line in lines) {
-      if (line.contains('\t')) {
-        List<String> parts = line.split('\t');
-        if (parts.length >= 2) {
-          devices.add(ConnectedDevice(
-            ip: parts[0].trim(),
-            mac: parts[1].trim(),
-            hostname: parts.length > 2 ? parts[2].trim() : 'Inconnu',
-          ));
-        }
-      }
-    }
-
-    return devices;
-  }
-
-  // Lire la table ARP du système
-  Future<List<ConnectedDevice>> parseArpTable() async {
-    List<ConnectedDevice> devices = [];
-
-    try {
-      String arpPath = Platform.isLinux ? '/proc/net/arp' : '';
-      if (arpPath.isNotEmpty && await File(arpPath).exists()) {
-        String content = await File(arpPath).readAsString();
-        List<String> lines = content.split('\n');
-
-        for (int i = 1; i < lines.length; i++) {
-          List<String> parts = lines[i].split(RegExp(r'\s+'));
-          if (parts.length >= 6 && parts[3] != '00:00:00:00:00:00') {
-            devices.add(ConnectedDevice(
-              ip: parts[0],
-              mac: parts[3],
-              hostname: 'Appareil-${parts[0].split('.').last}',
-            ));
-          }
-        }
-      }
-    } catch (e) {
-      print('Erreur lecture ARP: $e');
-    }
-
-    return devices;
-  }
-
-  // Scanner avec nmap
-  Future<List<ConnectedDevice>> nmapScan() async {
-    List<ConnectedDevice> devices = [];
-
-    try {
-      // Obtenir la plage réseau
-      ProcessResult result = await Process.run('ip', ['route', 'show']);
-      String networkRange = '192.168.1.0/24'; // Par défaut
-
-      if (result.exitCode == 0) {
-        // Parser pour trouver la vraie plage réseau
-        List<String> lines = result.stdout.split('\n');
-        for (String line in lines) {
-          if (line.contains(hotspotInterface ?? 'wlan0')) {
-            // Extraire la plage réseau de la ligne
-            break;
-          }
-        }
-      }
-
-      ProcessResult nmapResult = await Process.run('nmap', ['-sn', networkRange]);
-      if (nmapResult.exitCode == 0) {
-        // Parser les résultats nmap
-        String output = nmapResult.stdout;
-        RegExp ipRegex = RegExp(r'Nmap scan report for (\S+) \((\d+\.\d+\.\d+\.\d+)\)');
-
-        for (RegExpMatch match in ipRegex.allMatches(output)) {
-          String hostname = match.group(1) ?? 'Inconnu';
-          String ip = match.group(2) ?? '';
-
-          // Obtenir l'adresse MAC via ARP
-          ProcessResult arpResult = await Process.run('arp', ['-n', ip]);
-          String mac = 'Inconnu';
-          if (arpResult.exitCode == 0) {
-            List<String> arpParts = arpResult.stdout.split(' ');
-            if (arpParts.length > 3) {
-              mac = arpParts[3];
-            }
-          }
-
-          devices.add(ConnectedDevice(
-            ip: ip,
-            mac: mac,
-            hostname: hostname,
-          ));
-        }
-      }
-    } catch (e) {
-      print('Erreur nmap: $e');
-    }
-
-    return devices;
-  }
-
-  // Déconnecter un appareil
   Future<void> disconnectDevice(ConnectedDevice device) async {
-    try {
-      // Méthode 1: Bloquer via iptables
-      ProcessResult result = await Process.run('sudo', [
-        'iptables',
-        '-A', 'INPUT',
-        '-s', device.ip,
-        '-j', 'DROP'
-      ]);
+    final confirmed = await _showConfirmDialog(
+      'Déconnecter ${device.displayName}',
+      'Êtes-vous sûr de vouloir déconnecter cet appareil ?',
+    );
 
-      if (result.exitCode == 0) {
-        // Aussi bloquer en sortie
-        await Process.run('sudo', [
-          'iptables',
-          '-A', 'OUTPUT',
-          '-d', device.ip,
-          '-j', 'DROP'
-        ]);
+    if (confirmed) {
+      try {
+        // Simulation de la déconnexion
+        await Future.delayed(const Duration(milliseconds: 500));
 
-        showSuccessDialog('Appareil ${device.hostname} (${device.ip}) déconnecté');
-        refreshDevices();
-      } else {
-        throw Exception('Échec de la déconnexion');
+        setState(() {
+          connectedDevices.removeWhere((d) => d.mac == device.mac);
+        });
+
+        _showSuccessSnackBar('${device.displayName} déconnecté');
+      } catch (e) {
+        _showErrorSnackBar('Erreur lors de la déconnexion: $e');
       }
-    } catch (e) {
-      showErrorDialog('Erreur lors de la déconnexion: $e');
     }
   }
 
-  // Débloquer un appareil
-  Future<void> unblockDevice(ConnectedDevice device) async {
+  Future<void> blockDevice(ConnectedDevice device) async {
     try {
-      // Supprimer les règles iptables
-      await Process.run('sudo', [
-        'iptables',
-        '-D', 'INPUT',
-        '-s', device.ip,
-        '-j', 'DROP'
-      ]);
+      await Future.delayed(const Duration(milliseconds: 500));
 
-      await Process.run('sudo', [
-        'iptables',
-        '-D', 'OUTPUT',
-        '-d', device.ip,
-        '-j', 'DROP'
-      ]);
+      setState(() {
+        final index = connectedDevices.indexWhere((d) => d.mac == device.mac);
+        if (index != -1) {
+          connectedDevices[index] = ConnectedDevice(
+            mac: device.mac,
+            ip: device.ip,
+            hostname: device.hostname,
+            deviceName: device.deviceName,
+            connectedAt: device.connectedAt,
+            type: device.type,
+            isBlocked: !device.isBlocked,
+          );
+        }
+      });
 
-      showSuccessDialog('Appareil ${device.hostname} débloqué');
-      refreshDevices();
+      final action = device.isBlocked ? 'débloqué' : 'bloqué';
+      _showSuccessSnackBar('${device.displayName} $action');
     } catch (e) {
-      showErrorDialog('Erreur lors du déblocage: $e');
+      _showErrorSnackBar('Erreur: $e');
     }
   }
 
-  // Couper tous les appareils
   Future<void> disconnectAll() async {
-    bool confirm = await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Confirmation'),
-        content: Text('Voulez-vous vraiment déconnecter tous les appareils ?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Annuler'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('Confirmer'),
-          ),
-        ],
-      ),
+    final confirmed = await _showConfirmDialog(
+      'Déconnecter tous les appareils',
+      'Cette action déconnectera tous les appareils connectés. Continuer ?',
     );
 
-    if (confirm == true) {
-      for (ConnectedDevice device in connectedDevices) {
-        await disconnectDevice(device);
-      }
+    if (confirmed) {
+      setState(() {
+        connectedDevices.clear();
+      });
+      _showSuccessSnackBar('Tous les appareils ont été déconnectés');
     }
   }
 
-  void showErrorDialog(String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Erreur'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('OK'),
-          ),
-        ],
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline_rounded, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
 
-  void showSuccessDialog(String message) {
-    showDialog(
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle_rounded, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Future<bool> _showConfirmDialog(String title, String content) async {
+    return await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Succès'),
-        content: Text(message),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(title),
+        content: Text(content),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('OK'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Confirmer'),
           ),
         ],
       ),
-    );
+    ) ?? false;
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Gestionnaire Hotspot'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh),
-            onPressed: refreshDevices,
-          ),
-          IconButton(
-            icon: Icon(Icons.block),
-            onPressed: connectedDevices.isNotEmpty ? disconnectAll : null,
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Statistiques
-          Container(
-            padding: EdgeInsets.all(16),
-            color: Colors.blue.shade50,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                Column(
-                  children: [
-                    Text(
-                      '${connectedDevices.length}',
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+      backgroundColor: colorScheme.surface,
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) {
+          return [
+            SliverAppBar(
+              expandedHeight: 180,
+              floating: true,
+              pinned: true,
+              snap: true,
+              backgroundColor: colorScheme.surface,
+              surfaceTintColor: colorScheme.surfaceTint,
+              elevation: 0,
+              flexibleSpace: FlexibleSpaceBar(
+                title: AnimatedOpacity(
+                  opacity: innerBoxIsScrolled ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: const Text(
+                    'HotCut',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
                     ),
-                    Text('Appareils connectés'),
-                  ],
+                  ),
                 ),
-                Column(
-                  children: [
-                    Text(
-                      hotspotInterface ?? 'N/A',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                background: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        colorScheme.primaryContainer,
+                        colorScheme.primaryContainer.withOpacity(0.7),
+                      ],
                     ),
-                    Text('Interface'),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: colorScheme.onPrimaryContainer.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.wifi_rounded,
+                                color: colorScheme.onPrimaryContainer,
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'HotCut',
+                                    style: theme.textTheme.headlineSmall?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: colorScheme.onPrimaryContainer,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Gestionnaire de hotspot',
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: colorScheme.onPrimaryContainer.withOpacity(0.8),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              actions: [
+                IconButton(
+                  onPressed: refreshDevices,
+                  icon: AnimatedBuilder(
+                    animation: _refreshController,
+                    builder: (context, child) {
+                      return Transform.rotate(
+                        angle: _refreshController.value * 2 * 3.14159,
+                        child: Icon(
+                          Icons.refresh_rounded,
+                          color: colorScheme.onSurface,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                PopupMenuButton(
+                  icon: Icon(Icons.more_vert_rounded, color: colorScheme.onSurface),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'settings',
+                      child: Row(
+                        children: [
+                          Icon(Icons.settings_rounded),
+                          SizedBox(width: 12),
+                          Text('Paramètres'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'disconnect_all',
+                      enabled: connectedDevices.isNotEmpty,
+                      child: const Row(
+                        children: [
+                          Icon(Icons.wifi_off_rounded, color: Colors.red),
+                          SizedBox(width: 12),
+                          Text('Déconnecter tout'),
+                        ],
+                      ),
+                    ),
                   ],
+                  onSelected: (value) {
+                    if (value == 'disconnect_all') {
+                      disconnectAll();
+                    }
+                  },
                 ),
               ],
             ),
-          ),
+          ];
+        },
+        body: Column(
+          children: [
+            // Statistiques
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: _buildStatsCard(colorScheme),
+            ),
 
-          // Liste des appareils
-          Expanded(
-            child: isLoading
-                ? Center(child: CircularProgressIndicator())
-                : connectedDevices.isEmpty
-                ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+            // En-tête de la liste
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(Icons.wifi_off, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text('Aucun appareil connecté'),
-                  SizedBox(height: 8),
-                  TextButton(
-                    onPressed: refreshDevices,
-                    child: Text('Actualiser'),
+                  Text(
+                    'Appareils connectés',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${connectedDevices.length}',
+                      style: TextStyle(
+                        color: colorScheme.onPrimaryContainer,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
                   ),
                 ],
               ),
-            )
-                : ListView.builder(
-              itemCount: connectedDevices.length,
-              itemBuilder: (context, index) {
-                ConnectedDevice device = connectedDevices[index];
-                return Card(
-                  margin: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: Colors.green,
-                      child: Icon(Icons.devices, color: Colors.white),
-                    ),
-                    title: Text(device.hostname),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('IP: ${device.ip}'),
-                        Text('MAC: ${device.mac}'),
-                      ],
-                    ),
-                    trailing: PopupMenuButton(
-                      onSelected: (value) {
-                        if (value == 'disconnect') {
-                          disconnectDevice(device);
-                        } else if (value == 'unblock') {
-                          unblockDevice(device);
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        PopupMenuItem(
-                          value: 'disconnect',
-                          child: Row(
-                            children: [
-                              Icon(Icons.block, color: Colors.red),
-                              SizedBox(width: 8),
-                              Text('Déconnecter'),
-                            ],
-                          ),
-                        ),
-                        PopupMenuItem(
-                          value: 'unblock',
-                          child: Row(
-                            children: [
-                              Icon(Icons.wifi, color: Colors.green),
-                              SizedBox(width: 8),
-                              Text('Débloquer'),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+            ),
+            const SizedBox(height: 16),
+
+            // Liste des appareils
+            Expanded(
+              child: isLoading
+                  ? const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Scan en cours...'),
+                  ],
+                ),
+              )
+                  : connectedDevices.isEmpty
+                  ? _buildEmptyState(colorScheme)
+                  : ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: connectedDevices.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final device = connectedDevices[index];
+                  return _buildDeviceCard(device, colorScheme);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsCard(ColorScheme colorScheme) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            colorScheme.surfaceVariant,
+            colorScheme.surfaceVariant.withOpacity(0.7),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Row(
+          children: [
+            _buildStatItem(
+              icon: Icons.wifi_find_rounded,
+              value: isHotspotActive ? 'Actif' : 'Inactif',
+              label: 'Hotspot',
+              color: isHotspotActive ? Colors.green : Colors.red,
+              colorScheme: colorScheme,
+            ),
+            Container(
+              width: 1,
+              height: 50,
+              color: colorScheme.outline.withOpacity(0.2),
+            ),
+            _buildStatItem(
+              icon: Icons.devices_rounded,
+              value: '${connectedDevices.length}',
+              label: 'Appareils',
+              color: colorScheme.primary,
+              colorScheme: colorScheme,
+            ),
+            Container(
+              width: 1,
+              height: 50,
+              color: colorScheme.outline.withOpacity(0.2),
+            ),
+            _buildStatItem(
+              icon: Icons.network_check_rounded,
+              value: hotspotInterface ?? 'N/A',
+              label: 'Interface',
+              color: colorScheme.secondary,
+              colorScheme: colorScheme,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatItem({
+    required IconData icon,
+    required String value,
+    required String label,
+    required Color color,
+    required ColorScheme colorScheme,
+  }) {
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: colorScheme.onSurface.withOpacity(0.6),
+              fontSize: 12,
             ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: refreshDevices,
-        child: Icon(Icons.refresh),
-        tooltip: 'Actualiser la liste',
+    );
+  }
+
+  Widget _buildEmptyState(ColorScheme colorScheme) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(40),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  colorScheme.surfaceVariant,
+                  colorScheme.surfaceVariant.withOpacity(0.5),
+                ],
+              ),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.wifi_off_rounded,
+              size: 64,
+              color: colorScheme.onSurface.withOpacity(0.4),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Aucun appareil connecté',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: colorScheme.onSurface.withOpacity(0.7),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Text(
+              'Les appareils connectés à votre hotspot apparaîtront ici',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurface.withOpacity(0.5),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: refreshDevices,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Actualiser'),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeviceCard(ConnectedDevice device, ColorScheme colorScheme) {
+    final deviceColor = device.type.getColor(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: device.isBlocked
+              ? Colors.red.withOpacity(0.3)
+              : colorScheme.outline.withOpacity(0.1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          children: [
+            // Icône de l'appareil avec gradient
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: device.isBlocked
+                      ? [Colors.red.withOpacity(0.1), Colors.red.withOpacity(0.05)]
+                      : [deviceColor.withOpacity(0.2), deviceColor.withOpacity(0.1)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                device.type.icon,
+                color: device.isBlocked ? Colors.red : deviceColor,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+
+            // Informations de l'appareil
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          device.displayName,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.onSurface,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (device.isBlocked)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Bloqué',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.red,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(Icons.lan_rounded, size: 14, color: colorScheme.onSurface.withOpacity(0.6)),
+                      const SizedBox(width: 6),
+                      Text(
+                        device.ip,
+                        style: TextStyle(
+                          color: colorScheme.onSurface.withOpacity(0.7),
+                          fontSize: 10,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Icon(Icons.fingerprint_rounded, size: 14, color: colorScheme.onSurface.withOpacity(0.6)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          device.mac,
+                          style: TextStyle(
+                            color: colorScheme.onSurface.withOpacity(0.6),
+                            fontSize: 10,
+                            fontFamily: 'monospace',
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.access_time_rounded,
+                        size: 14,
+                        color: colorScheme.onSurface.withOpacity(0.5),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Connecté depuis ${device.connectionDuration}',
+                        style: TextStyle(
+                          color: colorScheme.onSurface.withOpacity(0.5),
+                          fontSize: 09,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        device.type.label,
+                        style: TextStyle(
+                          color: colorScheme.onSurface.withOpacity(0.5),
+                          fontSize: 08,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Menu d'actions
+            PopupMenuButton<String>(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              onSelected: (value) {
+                switch (value) {
+                  case 'block':
+                    blockDevice(device);
+                    break;
+                  case 'disconnect':
+                    disconnectDevice(device);
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'block',
+                  child: Row(
+                    children: [
+                      Icon(
+                        device.isBlocked ? Icons.wifi_rounded : Icons.block_rounded,
+                        color: device.isBlocked ? Colors.green : Colors.orange,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(device.isBlocked ? 'Débloquer' : 'Bloquer'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'disconnect',
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout_rounded, color: Colors.red),
+                      SizedBox(width: 12),
+                      Text('Déconnecter'),
+                    ],
+                  ),
+                ),
+              ],
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceVariant.withOpacity(0.3),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.more_vert_rounded,
+                  color: colorScheme.onSurfaceVariant,
+                  size: 20,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
