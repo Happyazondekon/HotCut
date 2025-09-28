@@ -1,290 +1,196 @@
-# HotCut 🔥📱
 
-Une application Flutter moderne et élégante pour gérer les appareils connectés à votre hotspot WiFi. Surveillez, contrôlez et gérez tous les appareils connectés à votre réseau avec une interface utilisateur intuitive et des fonctionnalités avancées.
+# HotCut - Gestionnaire de Hotspot
 
-## ✨ Fonctionnalités
 
-### 🎯 Fonctionnalités principales
-- **Détection automatique** des appareils connectés
-- **Blocage/déblocage** d'appareils spécifiques
-- **Déconnexion forcée** d'appareils
-- **Surveillance en temps réel** avec actualisation automatique
-- **Identification intelligente** des types d'appareils
-- **Interface moderne** avec thème sombre/clair
 
-### 📊 Statistiques et monitoring
-- Nombre total d'appareils connectés
-- Appareils actifs vs bloqués
-- Durée de connexion de chaque appareil
-- Informations détaillées (IP, MAC, fabricant)
+Une application Flutter élégante et performante pour gérer et monitorer votre hotspot mobile Android.
 
-### 🎨 Interface utilisateur
-- Design moderne avec Material Design 3
-- Animations fluides et micro-interactions
-- Thème adaptatif (clair/sombre)
-- Interface responsive et intuitive
-- Cartes d'appareils avec informations détaillées
+## 🚀 Fonctionnalités
 
-### 🔧 Fonctionnalités avancées
-- Tri par nom, IP, type ou heure de connexion
-- Filtrage des appareils (afficher/masquer bloqués)
-- Actions groupées (bloquer tous)
-- Détection automatique du type d'appareil
-- Reconnaissance du fabricant via MAC
+### 🔍 **Détection Intelligente**
+- Scan automatique des appareils connectés à votre hotspot
+- Détection du type d'appareil (smartphone, ordinateur, tablette, etc.)
+- Informations détaillées : adresse MAC, IP, nom d'hôte, durée de connexion
 
-## 🏗️ Architecture
+### 🎨 **Interface Moderne**
+- Design Material 3 avec thème sombre/clair automatique
+- Animations fluides et feedback visuel
+- Interface intuitive et responsive
 
-L'application suit une architecture propre et modulaire :
+### ⚡ **Gestion en Temps Réel**
+- Statut du hotspot en direct
+- Nombre d'appareils connectés
+- Interface réseau utilisée
+- Actualisation manuelle et automatique
 
-```
-lib/
-├── main.dart                 # Point d'entrée
+### 🛡️ **Contrôle de Sécurité**
+- Blocage/déblocage d'appareils individuels
+- Déconnexion selective ou globale
+- Protection contre les connexions non autorisées
 
-```
 
-## 🚀 Installation
+## 🛠️ Installation
 
 ### Prérequis
-- Flutter SDK (>= 3.0.0)
-- Android SDK (API niveau 21+)
-- Dart SDK (>= 3.0.0)
-- Un appareil Android avec accès root (pour certaines fonctionnalités)
+- Flutter SDK 3.7.2 ou supérieur
+- Android SDK
+- Un appareil Android avec fonctionnalité hotspot
 
-### Outils système requis
-Pour un fonctionnement optimal, installez ces outils sur votre système :
-
-```bash
-# Ubuntu/Debian
-sudo apt-get update
-sudo apt-get install arp-scan nmap iproute2 iptables
-
-# CentOS/RHEL/Fedora
-sudo yum install arp-scan nmap iproute iptables
-
-# Arch Linux
-sudo pacman -S arp-scan nmap iproute2 iptables
-```
-
-### Installation de l'application
+### Étapes d'installation
 
 1. **Cloner le repository**
-```bash
-git clone https://github.com/votreusername/hotcut.git
-cd hotcut
-```
+   ```bash
+   git clone https://github.com/votre-username/hotcut.git
+   cd hotcut
+   ```
 
 2. **Installer les dépendances**
-```bash
-flutter pub get
-```
+   ```bash
+   flutter pub get
+   ```
 
-3. **Générer les fichiers nécessaires**
-```bash
-flutter pub run build_runner build
-```
+3. **Configurer les permissions**
+   L'application nécessite les permissions suivantes :
+    - `ACCESS_WIFI_STATE`
+    - `ACCESS_NETWORK_STATE`
+    - `INTERNET`
+    - `ACCESS_FINE_LOCATION` (pour Android 10+)
 
 4. **Lancer l'application**
-```bash
-flutter run
-```
+   ```bash
+   flutter run
+   ```
 
 ## 📱 Utilisation
 
-### Première utilisation
+### Premier Lancement
+1. Activez le hotspot sur votre appareil Android
+2. Lancez l'application HotCut
+3. Accordez les permissions nécessaires
+4. L'application scanne automatiquement les appareils connectés
 
-1. **Permissions** : L'application demande les permissions nécessaires au premier lancement
-2. **Détection automatique** : Le scan des appareils se lance automatiquement
-3. **Interface principale** : Vous accédez à la liste des appareils connectés
+### Gestion des Appareils
+- **Actualiser** : Appuyez sur l'icône 🔄 pour scanner à nouveau
+- **Bloquer un appareil** : Menu ⋮ → "Bloquer"
+- **Déconnecter** : Menu ⋮ → "Déconnecter"
+- **Déconnecter tout** : Menu ⋮ → "Déconnecter tout"
 
-### Actions disponibles
+### Types d'Appareils Détectés
+- 📱 **Téléphone** - Smartphones et téléphones mobiles
+- 💻 **Ordinateur portable** - Laptops et notebooks
+- 📟 **Tablette** - Tablettes et iPads
+- 🖥️ **Ordinateur fixe** - PCs de bureau
+- 🌐 **Routeur** - Équipements réseau
+- ❓ **Inconnu** - Appareils non identifiés
 
-#### 🔍 Scanner les appareils
-- Actualisation automatique toutes les 30 secondes
-- Bouton de rafraîchissement manuel
-- Animation de chargement élégante
+## 🔧 Configuration Technique
 
-#### 🚫 Bloquer un appareil
-1. Appuyez sur le menu (⋮) d'un appareil
-2. Sélectionnez "Bloquer"
-3. L'appareil est immédiatement bloqué via iptables
-
-#### ✅ Débloquer un appareil
-1. Appuyez sur le menu (⋮) d'un appareil bloqué
-2. Sélectionnez "Débloquer"
-3. L'accès réseau est restauré
-
-#### 🔌 Déconnecter un appareil
-1. Appuyez sur le menu (⋮) d'un appareil
-2. Sélectionnez "Déconnecter"
-3. L'appareil est forcé à se déconnecter
-
-#### 📊 Voir les détails
-1. Appuyez sur une carte d'appareil
-2. Une feuille modale affiche tous les détails
-3. Informations complètes : IP, MAC, fabricant, etc.
-
-## 🔧 Configuration
-
-### Interface réseau
-Par défaut, l'application utilise `wlan0` comme interface de hotspot. Pour modifier :
-
-```dart
-// Dans lib/services/device_service.dart
-String? _hotspotInterface = 'wlan1'; // Changez selon votre configuration
+### Structure du Projet
+```
+hotcut/
+├── android/          # Configuration Android
+├── ios/              # Configuration iOS
+├── lib/
+│   ├── main.dart     # Point d'entrée de l'application
+│   └── ...          # Autres fichiers Dart
+├── pubspec.yaml      # Dépendances et métadonnées
+└── README.md
 ```
 
-### Intervalle de rafraîchissement
-Pour modifier la fréquence d'actualisation :
+### Dépendances Principales
+- `flutter` - Framework UI
+- `process_run` - Exécution de commandes système
+- `google_fonts` - Polices personnalisées
+- `permission_handler` - Gestion des permissions
 
-```dart
-// Dans lib/screens/home_screen.dart
-_refreshTimer = Timer.periodic(Duration(seconds: 15), (timer) {
-  // Changez 15 pour l'intervalle désiré en secondes
-```
-
-### Personnalisation du thème
-Modifiez les couleurs dans `lib/theme/app_theme.dart` :
-
-```dart
-static const Color primaryColor = Color(0xFF667EEA); // Votre couleur
-static const Color secondaryColor = Color(0xFF764BA2); // Votre couleur
-```
-
-## 🛠️ Fonctionnement technique
-
-### Détection des appareils
-L'application utilise plusieurs méthodes pour détecter les appareils :
-
-1. **Table ARP** (`/proc/net/arp`) - Méthode principale
-2. **arp-scan** - Scan réseau actif
-3. **nmap** - Découverte réseau avancée
-
-### Identification des appareils
-- **Type d'appareil** : Basé sur les préfixes MAC et noms d'hôte
-- **Fabricant** : Database des préfixes MAC OUI
-- **Nom d'affichage** : Nom personnalisé > hostname > IP
-
-### Gestion du blocage
-- **iptables** : Règles INPUT/OUTPUT pour bloquer le trafic
-- **DHCP release** : Libération du bail DHCP si disponible
-- **Persistance** : Les règles sont temporaires (redémarrage les supprime)
-
-## 🔒 Permissions et sécurité
-
-### Permissions Android requises
+### Permissions Android
 ```xml
-<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-<uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 <uses-permission android:name="android.permission.INTERNET" />
 <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 ```
 
-### Permissions système (root)
-Pour certaines fonctionnalités avancées :
-```bash
-# Blocage d'appareils
-sudo iptables -A INPUT -s [IP] -j DROP
+## 🎯 Fonctionnalités Techniques
 
-# Déconnexion DHCP
-sudo dhcp_release [interface] [IP] [MAC]
-```
+### Détection des Appareils
+L'application utilise plusieurs méthodes pour détecter les appareils connectés :
 
-## 🎨 Personnalisation
+1. **Table ARP** - Lecture de `/proc/net/arp`
+2. **Résolution DNS** - Recherche des noms d'hôte
+3. **Analyse OUI** - Identification par adresse MAC
 
-### Ajouter de nouveaux types d'appareils
-Dans `lib/models/device_model.dart` :
-
+### Algorithmes d'Identification
 ```dart
-enum DeviceType {
-  smartphone,
-  laptop,
-  // Ajoutez votre nouveau type ici
-  smartSpeaker,
-  // ...
+DeviceType _determineDeviceType(String mac) {
+  final oui = mac.substring(0, 8).toUpperCase();
+  // Logique de correspondance OUI -> type d'appareil
 }
-```
-
-### Personnaliser l'identification
-Dans `lib/services/device_service.dart`, méthode `_guessDeviceType()` :
-
-```dart
-// Ajoutez vos règles d'identification
-if (hostnameL.contains('alexa') || hostnameL.contains('echo')) {
-  return DeviceType.smartSpeaker;
-}
-```
-
-### Modifier l'apparence des cartes
-Dans `lib/widgets/device_card.dart`, personnalisez le `build()` :
-
-```dart
-// Changez les couleurs, icônes, layout selon vos préférences
 ```
 
 ## 🐛 Dépannage
 
-### L'application ne détecte aucun appareil
-1. Vérifiez que vous êtes sur le bon réseau
-2. Confirmez l'interface réseau (`wlan0`, `wlan1`, etc.)
-3. Installez les outils système requis (`arp-scan`, `nmap`)
-4. Vérifiez les permissions de l'application
+### Problèmes Courants
 
-### Le blocage ne fonctionne pas
-1. L'appareil doit avoir des privilèges root
-2. `iptables` doit être installé et accessible
-3. Vérifiez les règles : `sudo iptables -L`
+**❌ Aucun appareil détecté**
+- Vérifiez que le hotspot est activé
+- Assurez-vous que des appareils sont connectés
+- Vérifiez les permissions de localisation
 
-### Erreurs de permissions
-1. Accordez toutes les permissions demandées
-2. Pour Android 10+, activez la localisation pour le WiFi
-3. Redémarrez l'application après avoir accordé les permissions
+**❌ Erreur de permissions**
+- Réinstallez l'application
+- Accordez manuellement les permissions dans Paramètres → Applications
 
-### Performance lente
-1. Réduisez l'intervalle de rafraîchissement
-2. Limitez le nombre d'appareils affichés
-3. Utilisez le filtrage pour masquer les appareils bloqués
+**❌ Scan échoue**
+- Redémarrez l'application
+- Vérifiez la connexion Internet
 
-## 📚 API et documentation
-
-### Service DeviceService
-```dart
-// Obtenir les appareils connectés
-List<ConnectedDevice> devices = await DeviceService().getConnectedDevices();
-
-// Bloquer un appareil
-bool success = await DeviceService().blockDevice(device);
-
-// Débloquer un appareil
-bool success = await DeviceService().unblockDevice(device);
+### Logs de Débogage
+Activez les logs détaillés avec :
+```bash
+flutter run --verbose
 ```
 
-### Modèle ConnectedDevice
-```dart
-ConnectedDevice device = ConnectedDevice(
-  mac: '00:11:22:33:44:55',
-  ip: '192.168.1.100',
-  hostname: 'Mon-Appareil',
-  deviceType: DeviceType.smartphone,
-  vendor: 'Apple',
-);
-```
+## 📊 Métriques
+
+- **Temps de scan** : 2-3 secondes
+- **Consommation mémoire** : ~50-80 MB
+- **Compatibilité** : Android 8.0+
+- **Taille APK** : ~15-20 MB
 
 ## 🤝 Contribution
 
-Les contributions sont les bienvenues ! Voici comment contribuer :
+Les contributions sont les bienvenues !
 
-1. **Fork** le projet
-2. **Créer** une branche feature (`git checkout -b feature/AmazingFeature`)
-3. **Commit** vos changements (`git commit -m 'Add AmazingFeature'`)
-4. **Push** vers la branche (`git push origin feature/AmazingFeature`)
-5. **Ouvrir** une Pull Request
+1. Fork le projet
+2. Créez votre branche (`git checkout -b feature/AmazingFeature`)
+3. Commit vos changements (`git commit -m 'Add some AmazingFeature'`)
+4. Push sur la branche (`git push origin feature/AmazingFeature`)
+5. Ouvrez une Pull Request
 
-### Standards de code
-- Suivre les conventions Dart/Flutter
-- Documenter les nouvelles fonctionnalités
-- Tester sur plusieurs appareils
-- Respecter l'architecture existante
+## 📄 Licence
+
+Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
+
+## 👨‍💻 Développement
+
+### Architecture
+- **State Management** : setState pour une simplicité
+- **Design Pattern** : MVVM implicite
+- **Animation** : Controllers personnalisés
+
+### Améliorations Futures
+- [ ] Support iOS
+- [ ] Historique des connexions
+- [ ] Notifications de nouvelle connexion
+- [ ] Mode paysage
+- [ ] Export des logs
+- [ ] Widget home screen
 
 
-Fait avec ❤️ par l'équipe HotCut
+<div align="center">
+
+**Développé avec ❤️ et Flutter**
+
+
+

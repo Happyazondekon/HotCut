@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'dart:io';
 import 'dart:convert';
 
+import 'package:permission_handler/permission_handler.dart';
+
 void main() {
   runApp(HotCutApp());
 }
@@ -163,8 +165,10 @@ class _HotspotManagerHomeState extends State<HotspotManagerHome>
       vsync: this,
     )..repeat();
 
-    //_loadMockData(); // Pour la démo
-    // refreshDevices(); // Uncomment pour utiliser les vraies données
+    // Lancer le scan au démarrage
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      refreshDevices();
+    });
   }
 
   @override
@@ -214,17 +218,133 @@ class _HotspotManagerHomeState extends State<HotspotManagerHome>
       ];
     });
   }
+  Future<void> scanNetworkDevices() async {
+    try {
+      List<ConnectedDevice> devices = [];
 
+      // Exécuter la commande pour lister les clients ARP
+      final result = await Process.run('cat', ['/proc/net/arp']);
+
+      if (result.exitCode == 0) {
+        final lines = result.stdout.toString().split('\n');
+
+        // Ignorer la première ligne (en-tête) et traiter les autres
+        for (int i = 1; i < lines.length; i++) {
+          final line = lines[i].trim();
+          if (line.isEmpty) continue;
+
+          final parts = line.split(RegExp(r'\s+'));
+          if (parts.length >= 6) {
+            final ip = parts[0];
+            final mac = parts[3];
+            final flags = parts[2];
+
+            // Vérifier si l'entrée est complète (flags = 0x2)
+            if (mac != '00:00:00:00:00:00' && flags == '0x2') {
+              // Essayer de résoudre le hostname
+              String hostname = 'Appareil inconnu';
+              try {
+                final hostResult = await Process.run('nslookup', [ip]);
+                if (hostResult.exitCode == 0) {
+                  final output = hostResult.stdout.toString();
+                  final nameMatch = RegExp(r'name\s*=\s*([^\s\.]+)').firstMatch(output);
+                  if (nameMatch != null) {
+                    hostname = nameMatch.group(1)!;
+                  }
+                }
+              } catch (e) {
+                // En cas d'erreur, utiliser l'IP comme hostname
+                hostname = ip;
+              }
+
+              // Déterminer le type d'appareil basé sur le MAC
+              final deviceType = _determineDeviceType(mac);
+
+              devices.add(ConnectedDevice(
+                mac: mac,
+                ip: ip,
+                hostname: hostname,
+                connectedAt: DateTime.now(),
+                type: deviceType,
+              ));
+            }
+          }
+        }
+      }
+
+      setState(() {
+        connectedDevices = devices;
+      });
+
+    } catch (e) {
+      _showErrorSnackBar('Erreur de scan: $e');
+      // En cas d'erreur, charger les données de démo
+      _loadMockData();
+    }
+  }
+
+  DeviceType _determineDeviceType(String mac) {
+    final oui = mac.substring(0, 8).toUpperCase();
+
+    // Table de correspondance OUI -> type d'appareil
+    final phoneOuis = [
+      '00:1A:11', // Nokia
+      '00:23:F8', // Apple (iPhone)
+      '00:26:BB', // Apple
+      '34:BB:1F', // Samsung
+      '8C:85:90', // Apple
+      'AC:37:43', // Apple
+      'D8:96:95', // Apple
+      'FC:F1:36', // Samsung
+    ];
+
+    final laptopOuis = [
+      '00:03:93', // Apple (MacBook)
+      '00:0A:27', // Apple (VMware)
+      '00:1B:63', // Apple
+      '00:1D:4F', // Apple
+      '00:1E:52', // Apple
+      '00:1F:5B', // Apple
+      '00:21:E9', // Apple
+      '00:22:41', // Apple
+      '00:23:32', // Apple
+      '00:25:00', // Apple
+      '00:26:08', // Dell
+      '00:26:4A', // Apple
+      '00:26:B0', // Apple
+    ];
+
+    final tabletOuis = [
+      '00:1E:52', // Apple (iPad)
+      '00:26:08', // Apple
+      '7C:6D:62', // Apple
+      'A4:67:06', // Apple
+      'AC:CF:85', // LG
+    ];
+
+    if (phoneOuis.any((ouiPrefix) => oui.startsWith(ouiPrefix))) {
+      return DeviceType.phone;
+    } else if (laptopOuis.any((ouiPrefix) => oui.startsWith(ouiPrefix))) {
+      return DeviceType.laptop;
+    } else if (tabletOuis.any((ouiPrefix) => oui.startsWith(ouiPrefix))) {
+      return DeviceType.tablet;
+    }
+
+    return DeviceType.unknown;
+  }
   Future<void> refreshDevices() async {
+    final hasPermission = await _checkPermissions();
+    if (!hasPermission) {
+      _showErrorSnackBar('Permissions nécessaires pour scanner le réseau');
+      return;
+    }
     _refreshController.forward();
     setState(() {
       isLoading = true;
     });
 
     try {
-      // Simulation du chargement
-      await Future.delayed(const Duration(seconds: 2));
-      //_loadMockData();
+      await scanNetworkDevices(); // Utiliser le scan réel au lieu des données mock
 
       setState(() {
         isLoading = false;
@@ -260,7 +380,17 @@ class _HotspotManagerHomeState extends State<HotspotManagerHome>
       }
     }
   }
-
+  Future<bool> _checkPermissions() async {
+    try {
+      var status = await Permission.location.status;
+      if (!status.isGranted) {
+        status = await Permission.location.request();
+      }
+      return status.isGranted;
+    } catch (e) {
+      return false;
+    }
+  }
   Future<void> blockDevice(ConnectedDevice device) async {
     try {
       await Future.delayed(const Duration(milliseconds: 500));
